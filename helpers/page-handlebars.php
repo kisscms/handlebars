@@ -1,15 +1,12 @@
 <?php
 
-require '../lib/Handlebars/Autoloader.php';
-Handlebars\Autoloader::register();
-
 use Handlebars\Handlebars;
-
 
 class PageHandlebars {
 
-	render: function(){
-		$this->engine = new Handlebars();
+	public static function render(){
+
+		$GLOBALS["_hbs_engine"] = new Handlebars();
 		/*
 		$engine = new Handlebars(array(
 			'loader' => new \Handlebars\Loader\FilesystemLoader(__DIR__.'/templates/'),
@@ -21,11 +18,14 @@ class PageHandlebars {
 			)
 		));
 		*/
-	},
 
-	parse: function( $view, $data ){
-		$view = $this->engine->render($view, $data);
-		return $view;
+	}
+
+	public static function parse( &$view ){
+		$args = func_get_args();
+		if( !isset( $args[1] ) ) $args[1] = get_defined_vars();
+		$engine = $GLOBALS["_hbs_engine"];
+		$view = $engine->render( $view, $args[1]);
 	}
 }
 
