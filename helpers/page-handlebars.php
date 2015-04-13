@@ -24,6 +24,7 @@ class PageHandlebars {
 	public static function parse( &$view ){
 		$args = func_get_args();
 		if( !isset( $args[1] ) ) $args[1] = get_defined_vars();
+		if( !array_key_exists("_hbs_engine", $GLOBALS) ) return;
 		$engine = $GLOBALS["_hbs_engine"];
 		$view = $engine->render( $view, $args[1]);
 	}
