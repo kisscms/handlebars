@@ -15,7 +15,7 @@
 		}
 	],
 	"require": {
-		"php": "7.x.x"
+		"php": ">=8.x.x"
 	},
 	"repositories": [
 		{
