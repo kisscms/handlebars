@@ -1,40 +1,23 @@
 <?php
 /**
- * This file is part of Handlebars-php
- * Base on mustache-php https://github.com/bobthecow/mustache.php
- *
- * PHP version 5.3
- *
- * @category  Xamin
- * @package   Handlebars
- * @author    fzerorubigd <fzerorubigd@gmail.com>
- * @author    Behrooz Shabani <everplays@gmail.com>
- * @author    Mária Šormanová <maria.sormanova@gmail.com>
- * @copyright 2012 (c) ParsPooyesh Co
- * @copyright 2013 (c) Behrooz Shabani
- * @license   MIT <http://opensource.org/licenses/MIT>
- * @version   GIT: $Id$
- * @link      http://xamin.ir
- */
-
-namespace Handlebars\Cache;
-use Handlebars\Cache;
-
-/**
  * A dummy array cache
  *
  * @category  Xamin
  * @package   Handlebars
  * @author    fzerorubigd <fzerorubigd@gmail.com>
+ * @author    Behrooz Shabani <everplays@gmail.com>
  * @copyright 2012 (c) ParsPooyesh Co
- * @license   MIT <http://opensource.org/licenses/MIT>
- * @version   Release: @package_version@
- * @link      http://xamin.ir
+ * @copyright 2013 (c) Behrooz Shabani
+ * @license   MIT
+ * @link      http://voodoophp.org/docs/handlebars
  */
+
+namespace Handlebars\Cache;
+use Handlebars\Cache;
 
 class Dummy implements Cache
 {
-    private $_cache = array();
+    private $cache = [];
 
     /**
      * Get cache for $name if exist.
@@ -45,8 +28,8 @@ class Dummy implements Cache
      */
     public function get($name)
     {
-        if (array_key_exists($name, $this->_cache)) {
-            return $this->_cache[$name];
+        if (array_key_exists($name, $this->cache)) {
+            return $this->cache[$name];
         }
         return false;
     }
@@ -56,16 +39,12 @@ class Dummy implements Cache
      *
      * @param string $name  cache id
      * @param mixed  $value data to store
-     * @param int    $ttl   time to live in seconds
-     *
-     * $ttl is ignored since the cache is implemented
-     * by an array and lives only inside one request
      *
      * @return void
      */
-    public function set($name, $value, $ttl = 0)
+    public function set($name, $value)
     {
-        $this->_cache[$name] = $value;
+        $this->cache[$name] = $value;
     }
 
     /**
@@ -77,7 +56,7 @@ class Dummy implements Cache
      */
     public function remove($name)
     {
-        unset($this->_cache[$name]);
+        unset($this->cache[$name]);
     }
 
 }

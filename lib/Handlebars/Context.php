@@ -1,29 +1,5 @@
 <?php
 /**
- * This file is part of Handlebars-php
- * Base on mustache-php https://github.com/bobthecow/mustache.php
- *
- * PHP version 5.3
- *
- * @category  Xamin
- * @package   Handlebars
- * @author    fzerorubigd <fzerorubigd@gmail.com>
- * @author    Behrooz Shabani <everplays@gmail.com>
- * @author    Chris Gray <chris.w.gray@gmail.com>
- * @author    Ulrik Lystbaek <ulrik@bettertaste.dk>
- * @author    Dmitriy Simushev <simushevds@gmail.com>
- * @copyright 2010-2012 (c) Justin Hileman
- * @copyright 2012 (c) ParsPooyesh Co
- * @copyright 2013 (c) Behrooz Shabani
- * @copyright 2013 (c) f0ruD A
- * @license   MIT <http://opensource.org/licenses/MIT>
- * @version   GIT: $Id$
- * @link      http://xamin.ir
- */
-
-namespace Handlebars;
-
-/**
  * Handlebars context
  * Context for a template
  *
@@ -31,64 +7,73 @@ namespace Handlebars;
  * @package   Handlebars
  * @author    fzerorubigd <fzerorubigd@gmail.com>
  * @author    Behrooz Shabani <everplays@gmail.com>
- * @copyright 2010-2012 (c) Justin Hileman
+ * @author    Mardix <https://github.com/mardix>
  * @copyright 2012 (c) ParsPooyesh Co
- * @license   MIT <http://opensource.org/licenses/MIT>
- * @version   Release: @package_version@
- * @link      http://xamin.ir
+ * @copyright 2013 (c) Behrooz Shabani
+ * @copyright 2013 (c) Mardix
+ * @license   MIT
+ * @link      http://voodoophp.org/docs/handlebars
  */
+
+namespace Handlebars;
+
+use InvalidArgumentException;
+use LogicException;
 
 class Context
 {
-    /**
-     * List of charcters that cannot be used in identifiers.
-     */
-    const NOT_VALID_NAME_CHARS = '!"#%&\'()*+,./;<=>@[\\]^`{|}~';
+    const DATA_KEY = 'key';
+    const DATA_INDEX = 'index';
+    const DATA_FIRST = 'first';
+    const DATA_LAST = 'last';
 
     /**
-     * List of characters that cannot be used in identifiers in segment-literal
-     * notation.
-     */
-    const NOT_VALID_SEGMENT_NAME_CHARS = "]";
-
-    /**
-     * Context stack
-     *
      * @var array stack for context only top stack is available
      */
-    protected $stack = array();
+    protected $stack = [];
 
     /**
-     * Section stack index
-     *
      * @var array index stack for sections
      */
-    protected $index = array();
+    protected $index = [];
 
     /**
-     * Object stack keys
-     *
+     * @var array dataStack stack for data within sections
+     */
+    protected $dataStack = [];
+
+    /**
      * @var array key stack for objects
      */
-    protected $key = array();
+    protected $key = [];
 
     /**
-     * Special variables stack for sections. 
-     *
-     * @var array Each stack element can
-     * contain elements with "@index", "@key", "@first" and "@last" keys.
+     * @var bool enableDataVariables true if @data variables should be used.
      */
-    protected $specialVariables = array();
+    protected $enableDataVariables = false;
 
     /**
      * Mustache rendering Context constructor.
      *
      * @param mixed $context Default rendering context (default: null)
+     * @param array $options Options for the context. It may contain the following: (default: empty array)
+     *                       enableDataVariables => Boolean, Enables @data variables (default: false)
+     *
+     * @throws InvalidArgumentException when calling this method when enableDataVariables is not a boolean.
      */
-    public function __construct($context = null)
+    public function __construct($context = null, $options = [])
     {
         if ($context !== null) {
-            $this->stack = array($context);
+            $this->stack = [$context];
+        }
+
+        if (isset($options[Handlebars::OPTION_ENABLE_DATA_VARIABLES])) {
+            if (!is_bool($options[Handlebars::OPTION_ENABLE_DATA_VARIABLES])) {
+                throw new InvalidArgumentException(
+                    'Context Constructor "' . Handlebars::OPTION_ENABLE_DATA_VARIABLES . '" option must be a boolean'
+                );
+            }
+            $this->enableDataVariables = $options[Handlebars::OPTION_ENABLE_DATA_VARIABLES];
         }
     }
 
@@ -105,17 +90,40 @@ class Context
     }
 
     /**
-     * Push an array of special variables to stack.
+     * Push an Index onto the index stack
      *
-     * @param array $variables An associative array of special variables.
+     * @param integer $index Index of the current section item.
      *
      * @return void
-     *
-     * @see \Handlebars\Context::$specialVariables
      */
-    public function pushSpecialVariables($variables)
+    public function pushIndex($index)
     {
-        array_push($this->specialVariables, $variables);
+        array_push($this->index, $index);
+    }
+
+    /**
+     * Pushes data variables onto the stack. This is used to support @data variables.
+     * @param array $data Associative array where key is the name of the @data variable and value is the value.
+     * @throws LogicException when calling this method without having enableDataVariables.
+     */
+    public function pushData($data)
+    {
+        if (!$this->enableDataVariables) {
+            throw new LogicException('Data variables are not supported due to the enableDataVariables configuration. Remove the call to data variables or change the setting.');
+        }
+        array_push($this->dataStack, $data);
+    }
+
+    /**
+     * Push a Key onto the key stack
+     *
+     * @param string $key Key of the current object property.
+     *
+     * @return void
+     */
+    public function pushKey($key)
+    {
+        array_push($this->key, $key);
     }
 
     /**
@@ -129,15 +137,37 @@ class Context
     }
 
     /**
-     * Pop the last special variables set from the stack.
+     * Pop the last index from the stack.
      *
-     * @return array Associative array of special variables.
-     *
-     * @see \Handlebars\Context::$specialVariables
+     * @return int Last index
      */
-    public function popSpecialVariables()
+    public function popIndex()
     {
-        return array_pop($this->specialVariables);
+        return array_pop($this->index);
+    }
+
+    /**
+     * Pop the last section data from the stack.
+     *
+     * @return array Last data
+     * @throws LogicException when calling this method without having enableDataVariables.
+     */
+    public function popData()
+    {
+        if (!$this->enableDataVariables) {
+            throw new LogicException('Data variables are not supported due to the enableDataVariables configuration. Remove the call to data variables or change the setting.');
+        }
+        return array_pop($this->dataStack);
+    }
+
+    /**
+     * Pop the last key from the stack.
+     *
+     * @return string Last key
+     */
+    public function popKey()
+    {
+        return array_pop($this->key);
     }
 
     /**
@@ -151,15 +181,23 @@ class Context
     }
 
     /**
-     * Get the last special variables set from the stack.
+     * Get the index of current section item.
      *
-     * @return array Associative array of special variables.
-     *
-     * @see \Handlebars\Context::$specialVariables
+     * @return mixed Last index
      */
-    public function lastSpecialVariables()
+    public function lastIndex()
     {
-        return end($this->specialVariables);
+        return end($this->index);
+    }
+
+    /**
+     * Get the key of current object property.
+     *
+     * @return mixed Last key
+     */
+    public function lastKey()
+    {
+        return end($this->key);
     }
 
     /**
@@ -178,24 +216,26 @@ class Context
     }
 
     /**
-     * Get a available from current context
+     * Get a avariable from current context
      * Supported types :
-     * variable , ../variable , variable.variable , variable.[variable] , .
+     * variable , ../variable , variable.variable , .
      *
-     * @param string  $variableName variable name to get from current context
+     * @param string  $variableName variavle name to get from current context
      * @param boolean $strict       strict search? if not found then throw exception
      *
-     * @throws \InvalidArgumentException in strict mode and variable not found
-     * @throws \RuntimeException if supplied argument is a malformed quoted string 
-     * @throws \InvalidArgumentException if variable name is invalid
+     * @throws InvalidArgumentException in strict mode and variable not found
      * @return mixed
      */
     public function get($variableName, $strict = false)
     {
-        if ($variableName instanceof \Handlebars\StringWrapper) {
-            return (string)$variableName;
-        }
+        //Need to clean up
         $variableName = trim($variableName);
+
+        //Handle data variables (@index, @first, @last, etc)
+        if ($this->enableDataVariables && substr($variableName, 0, 1) == '@') {
+            return $this->getDataVariable($variableName, $strict);
+        }
+
         $level = 0;
         while (substr($variableName, 0, 3) == '../') {
             $variableName = trim(substr($variableName, 3));
@@ -203,19 +243,12 @@ class Context
         }
         if (count($this->stack) < $level) {
             if ($strict) {
-                throw new \InvalidArgumentException(
-                    sprintf(
-                        'Can not find variable in context: "%s"',
-                        $variableName
-                    )
+                throw new InvalidArgumentException(
+                    'can not find variable in context'
                 );
             }
 
             return '';
-        }
-        if (substr($variableName, 0, 6) == '@root.') {
-            $variableName = trim(substr($variableName, 6));
-            $level = count($this->stack)-1;
         }
         end($this->stack);
         while ($level) {
@@ -225,41 +258,93 @@ class Context
         $current = current($this->stack);
         if (!$variableName) {
             if ($strict) {
-                throw new \InvalidArgumentException(
-                    sprintf(
-                        'Can not find variable in context: "%s"',
-                        $variableName
-                    )
+                throw new InvalidArgumentException(
+                    'can not find variable in context'
                 );
             }
-
             return '';
         } elseif ($variableName == '.' || $variableName == 'this') {
             return $current;
-        } elseif ($variableName[0] == '@') {
-            $specialVariables = $this->lastSpecialVariables();
-            if (isset($specialVariables[$variableName])) {
-                return $specialVariables[$variableName];
-            } elseif ($strict) {
-                throw new \InvalidArgumentException(
-                    sprintf(
-                        'Can not find variable in context: "%s"',
-                        $variableName
-                    )
-                );
-            } else {
-                return '';
-            }
         } else {
-            $chunks = $this->_splitVariableName($variableName);
+            $chunks = explode('.', $variableName);
             foreach ($chunks as $chunk) {
                 if (is_string($current) and $current == '') {
                     return $current;
                 }
-                $current = $this->_findVariableInContext($current, $chunk, $strict);
+                $current = $this->findVariableInContext($current, $chunk, $strict);
             }
         }
         return $current;
+    }
+
+    /**
+     * Given a data variable, retrieves the value associated.
+     *
+     * @param $variableName
+     * @param bool $strict
+     * @return mixed
+     * @throws LogicException when calling this method without having enableDataVariables.
+     */
+    public function getDataVariable($variableName, $strict = false)
+    {
+        if (!$this->enableDataVariables) {
+            throw new LogicException('Data variables are not supported due to the enableDataVariables configuration. Remove the call to data variables or change the setting.');
+        }
+
+        $variableName = trim($variableName);
+
+        // make sure we get an at-symbol prefix
+        if (substr($variableName, 0, 1) != '@') {
+            if ($strict) {
+                throw new InvalidArgumentException(
+                    'Can not find variable in context'
+                );
+            }
+            return '';
+        }
+
+        // Remove the at-symbol prefix
+        $variableName = substr($variableName, 1);
+
+        // determine the level of relative @data variables
+        $level = 0;
+        while (substr($variableName, 0, 3) == '../') {
+            $variableName = trim(substr($variableName, 3));
+            $level++;
+        }
+
+        // make sure the stack actually has the specified number of levels
+        if (count($this->dataStack) < $level) {
+            if ($strict) {
+                throw new InvalidArgumentException(
+                    'Can not find variable in context'
+                );
+            }
+
+            return '';
+        }
+
+        // going from the top of the stack to the bottom, traverse the number of levels specified
+        end($this->dataStack);
+        while ($level) {
+            prev($this->dataStack);
+            $level--;
+        }
+
+        /** @var array $current */
+        $current = current($this->dataStack);
+
+        if (!array_key_exists($variableName, $current)) {
+            if ($strict) {
+                throw new InvalidArgumentException(
+                    'Can not find variable in context'
+                );
+            }
+
+            return '';
+        }
+
+        return $current[$variableName];
     }
 
     /**
@@ -272,85 +357,26 @@ class Context
      * @throws \InvalidArgumentException in strict mode and variable not found
      * @return boolean true if exist
      */
-    private function _findVariableInContext($variable, $inside, $strict = false)
+    private function findVariableInContext($variable, $inside, $strict = false)
     {
-        $value = null;
+        $value = '';
         if (($inside !== '0' && empty($inside)) || ($inside == 'this')) {
             return $variable;
         } elseif (is_array($variable)) {
-            if (isset($variable[$inside]) || array_key_exists($inside, $variable)) {
-                return $variable[$inside];
-            } elseif ($inside == "length") {
-                return count($variable);
+            if (isset($variable[$inside])) {
+                $value = $variable[$inside];
             }
         } elseif (is_object($variable)) {
             if (isset($variable->$inside)) {
-                return $variable->$inside;
+                $value = $variable->$inside;
             } elseif (is_callable(array($variable, $inside))) {
-                return call_user_func(array($variable, $inside));
+                $value = call_user_func(array($variable, $inside));
             }
+        } elseif ($inside === '.') {
+            $value = $variable;
+        } elseif ($strict) {
+            throw new InvalidArgumentException('can not find variable in context');
         }
-
-        if ($strict) {
-            throw new \InvalidArgumentException(
-                sprintf(
-                    'Can not find variable in context: "%s"',
-                    $inside
-                )
-            );
-        }
-
         return $value;
     }
-
-    /**
-     * Splits variable name to chunks.
-     *
-     * @param string $variableName Fully qualified name of a variable.
-     *
-     * @throws \InvalidArgumentException if variable name is invalid.
-     * @return array
-     */
-    private function _splitVariableName($variableName)
-    {
-        $bad_chars = preg_quote(self::NOT_VALID_NAME_CHARS, '/');
-        $bad_seg_chars = preg_quote(self::NOT_VALID_SEGMENT_NAME_CHARS, '/');
-
-        $name_pattern = "(?:[^" 
-            . $bad_chars 
-            . "\s]+)|(?:\[[^" 
-            . $bad_seg_chars 
-            . "]+\])";
-        
-        $check_pattern = "/^((" 
-            . $name_pattern 
-            . ")\.)*(" 
-            . $name_pattern  
-            . ")\.?$/";
-        
-        $get_pattern = "/(?:" . $name_pattern . ")/";
-
-        if (!preg_match($check_pattern, $variableName)) {
-            throw new \InvalidArgumentException(
-                sprintf(
-                    'Variable name is invalid: "%s"',
-                    $variableName
-                )
-            );
-        }
-
-        preg_match_all($get_pattern, $variableName, $matches);
-
-        $chunks = array();
-        foreach ($matches[0] as $chunk) {
-            // Remove wrapper braces if needed
-            if ($chunk[0] == '[') {
-                $chunk = substr($chunk, 1, -1);
-            }
-            $chunks[] = $chunk;
-        }
-
-        return $chunks;
-    }
-
 }
